@@ -4,34 +4,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <title>High Five | Join</title>
+    <style>
+        .squish:active { transform: scale(0.92); }
+        .radar-pulse { animation: radar 2s infinite; }
+        @keyframes radar { 0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); } 100% { box-shadow: 0 0 0 50px rgba(99, 102, 241, 0); } }
+    </style>
 </head>
-<body class="bg-[#0f172a] min-h-screen flex items-center justify-center p-6 text-white font-sans">
+<body class="bg-[#0a0a0c] min-h-screen flex items-center justify-center p-6 text-white font-sans overflow-hidden">
     <div class="w-full max-w-sm text-center">
-        <h1 class="text-6xl mb-4 animate-bounce">🖐️</h1>
-        <h2 class="text-4xl font-black mb-2 tracking-tight">High Five</h2>
-        <p class="text-slate-400 mb-8 font-medium">5 minutes. Pure vibes.</p>
+        <div class="w-24 h-24 bg-indigo-600 rounded-full mx-auto mb-8 flex items-center justify-center text-4xl radar-pulse">🖐️</div>
+        <h1 class="text-4xl font-black mb-2 tracking-tighter uppercase italic">High Five</h1>
+        <p class="text-slate-500 mb-8 font-medium">Ready for your 5-minute vibe?</p>
 
         <form action="/login" method="POST" class="space-y-4">
-            <input name="username" placeholder="Nickname" required class="w-full p-5 bg-slate-800/50 rounded-3xl border border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-center">
+            <input name="username" placeholder="Nickname" required class="w-full p-5 bg-white/5 rounded-3xl border border-white/10 outline-none focus:border-indigo-500 font-bold text-center">
             
             <div class="flex gap-2">
-                <select name="platform" class="bg-slate-800 p-5 rounded-3xl border border-slate-700 font-bold">
+                <select name="platform" class="bg-white/5 p-5 rounded-3xl border border-white/10 font-bold">
                     <option value="Instagram">IG</option>
                     <option value="Snapchat">Snap</option>
                 </select>
-                <input name="social" placeholder="Handle" required class="flex-1 p-5 bg-slate-800/50 rounded-3xl border border-slate-700 outline-none font-bold text-center">
+                <input name="social" placeholder="Handle" required class="flex-1 p-5 bg-white/5 rounded-3xl border border-white/10 outline-none font-bold text-center">
             </div>
 
-            <select name="vibe" class="w-full p-5 bg-slate-800/50 rounded-3xl border border-slate-700 font-bold appearance-none text-center">
+            <select name="vibe" class="w-full p-5 bg-white/5 rounded-3xl border border-white/10 font-bold text-center appearance-none">
                 <option value="Chill">Vibe: Chill 🌿</option>
                 <option value="Deep">Vibe: Deep Talk 🌌</option>
                 <option value="Funny">Vibe: Funny 🤡</option>
             </select>
 
-            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-3xl font-black text-xl shadow-[0_0_40px_rgba(79,70,229,0.3)] transition-all active:scale-95 uppercase tracking-widest">
-                Start Vibing
+            <button type="submit" class="squish w-full bg-indigo-600 py-5 rounded-3xl font-black text-xl shadow-xl transition-all uppercase tracking-widest mt-4">
+                Enter The Lobby
             </button>
         </form>
+        
+        <div class="mt-8 text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em]">
+            <span id="online-count">0</span> Humans Online Now
+        </div>
     </div>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        socket.on('update_stats', (data) => {
+            document.getElementById('online-count').innerText = data.online;
+        });
+    </script>
 </body>
 </html>

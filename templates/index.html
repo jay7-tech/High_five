@@ -4,46 +4,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <title>High Five | Chat</title>
+    <title>High Five | Pro Max</title>
     <style>
-        body { overflow: hidden; height: 100vh; touch-action: none; background: #0f172a; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); }
-        .float-emoji { position: absolute; bottom: 100px; animation: floatUp 2s ease-out forwards; font-size: 3rem; pointer-events: none; }
-        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-400px) scale(2); opacity: 0; } }
-        .pulse-ring { transition: transform 0.1s ease-out; }
+        body { overflow: hidden; height: 100vh; touch-action: none; transition: background 0.8s ease; }
+        .bg-chill { background: radial-gradient(circle at center, #1e1b4b, #020617); }
+        .bg-active { background: radial-gradient(circle at center, #4338ca, #020617); }
+        .bg-hot { background: radial-gradient(circle at center, #7c3aed, #020617); }
+        
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
+        .squish:active { transform: scale(0.94); }
+        
+        #nuke-slide { transform: translateY(-200%); transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        #nuke-slide.active { transform: translateY(0); }
+
+        .float-emoji { position: absolute; bottom: 120px; animation: floatUp 2.5s ease-out forwards; font-size: 3.5rem; pointer-events: none; }
+        @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(-500px) rotate(20deg); opacity: 0; } }
     </style>
 </head>
-<body class="text-white flex flex-col items-center justify-between p-6">
+<body class="bg-chill text-white flex flex-col items-center justify-between p-6">
 
-    <div class="w-full flex justify-between items-center glass p-4 rounded-[2rem]">
-        <div class="flex items-center gap-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-xs font-black uppercase opacity-60">Live</span></div>
-        <div id="vibe-tag" class="text-[10px] font-black bg-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest">Ready</div>
+    <div id="nuke-slide" class="fixed top-6 left-6 right-6 z-[100] glass bg-indigo-600/90 p-6 rounded-[2.5rem] shadow-2xl border-2 border-white/20">
+        <p class="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">🚨 Icebreaker Triggered</p>
+        <p id="nuke-text" class="text-lg font-bold italic leading-tight"></p>
     </div>
 
-    <div id="react-container" class="relative w-full flex-1 flex flex-col items-center justify-center">
-        <div id="topic-card" class="hidden glass bg-yellow-400 text-black p-5 rounded-3xl mb-8 font-black border-4 border-black z-50"></div>
-        
-        <div class="relative w-64 h-64 flex items-center justify-center">
-            <div id="ring" class="absolute inset-0 rounded-full border-[12px] border-indigo-500/20 pulse-ring shadow-[0_0_50px_rgba(79,70,229,0.2)]"></div>
+    <div class="w-full flex justify-between items-center glass p-5 rounded-[2.5rem]">
+        <button onclick="reportUser()" class="text-xs font-black text-red-400 uppercase tracking-widest squish bg-red-500/10 px-4 py-2 rounded-full">Report</button>
+        <div id="partner-vibe" class="hidden text-[10px] font-black bg-indigo-500 px-4 py-2 rounded-full uppercase tracking-widest shadow-lg shadow-indigo-500/20 animate-pulse">Ready</div>
+    </div>
+
+    <div id="main-stage" class="relative w-full flex-1 flex flex-col items-center justify-center">
+        <div class="relative w-72 h-72 flex items-center justify-center">
+            <div id="visualizer-ring" class="absolute inset-0 rounded-full border-[16px] border-indigo-500/10 shadow-[0_0_60px_rgba(99,102,241,0.1)] transition-transform duration-75"></div>
             <div class="text-center z-10">
-                <p id="partner-name" class="text-xs font-bold opacity-40 uppercase mb-1">Searching...</p>
-                <div id="timer" class="text-6xl font-black tracking-tighter tabular-nums">05:00</div>
+                <p id="partner-status" class="text-xs font-bold opacity-30 uppercase tracking-widest mb-2">Waiting for Pulse</p>
+                <div id="timer" class="text-7xl font-black tracking-tighter tabular-nums text-indigo-100">05:00</div>
             </div>
         </div>
     </div>
 
-    <div class="w-full space-y-4">
-        <div id="reveal" class="hidden p-5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl text-center font-black shadow-2xl"></div>
-        
-        <div id="emoji-bar" class="hidden flex justify-center gap-6 mb-4">
-            <button onclick="sendEmoji('🔥')" class="text-3xl active:scale-150 transition">🔥</button>
-            <button onclick="sendEmoji('🖐️')" class="text-3xl active:scale-150 transition">🖐️</button>
-            <button onclick="sendEmoji('❤️')" class="text-3xl active:scale-150 transition">❤️</button>
-            <button onclick="sendEmoji('😂')" class="text-3xl active:scale-150 transition">😂</button>
+    <div class="w-full space-y-4 pb-4">
+        <div id="reveal-card" class="hidden p-6 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-[2.5rem] text-center shadow-2xl animate-bounce">
+            <p class="text-[10px] uppercase font-black mb-1 opacity-80">🔥 Mutual High Five!</p>
+            <div id="reveal-text" class="text-xl font-black"></div>
         </div>
 
-        <button id="action-btn" onclick="startSearch()" class="w-full py-6 rounded-[2.5rem] bg-indigo-600 text-white font-black text-xl shadow-2xl active:scale-95 transition-all">
-            FIND A MATCH
+        <div id="emoji-dock" class="hidden flex justify-center gap-6 mb-4">
+            <button onclick="sendReact('🔥')" class="text-3xl squish">🔥</button>
+            <button onclick="sendReact('🖐️')" class="text-3xl squish">🖐️</button>
+            <button onclick="sendReact('🌌')" class="text-3xl squish">🌌</button>
+            <button onclick="sendReact('😂')" class="text-3xl squish">😂</button>
+        </div>
+
+        <button id="main-action" onclick="findMatch()" class="squish w-full py-6 rounded-[2.5rem] bg-white text-indigo-900 font-black text-xl shadow-2xl transition-all tracking-tight">
+            SEARCHING...
         </button>
     </div>
 
@@ -51,63 +65,59 @@
         const socket = io();
         let pc, localStream, currentRoom, silenceStart;
 
-        function startSearch() {
-            socket.emit('find_match');
-            document.getElementById('action-btn').innerText = "SEARCHING...";
-            document.getElementById('action-btn').disabled = true;
-        }
+        // Auto-start search on index load
+        window.onload = () => socket.emit('find_match');
 
         socket.on('match_success', async (data) => {
             currentRoom = data.room_id;
-            document.getElementById('partner-name').innerText = "Vibing with " + data.partner.username;
-            document.getElementById('vibe-tag').innerText = data.partner.vibe;
-            document.getElementById('emoji-bar').classList.remove('hidden');
+            document.getElementById('partner-status').innerText = `Talking to ${data.partner.username}`;
+            document.getElementById('partner-vibe').innerText = data.partner.vibe;
+            document.getElementById('partner-vibe').classList.remove('hidden');
+            document.getElementById('emoji-dock').classList.remove('hidden');
             
-            const btn = document.getElementById('action-btn');
-            btn.disabled = false;
+            const btn = document.getElementById('main-action');
             btn.innerText = "GIVE HIGH FIVE 🖐️";
+            btn.className = "squish w-full py-6 rounded-[2.5rem] bg-indigo-500 text-white font-black text-xl shadow-xl transition-all";
             btn.onclick = () => { socket.emit('give_high_five', {room_id: currentRoom}); btn.innerText = "WAITING..."; btn.disabled = true; };
 
-            await initVoice();
-            setupWebRTC(data.initiator);
-            startTimer(data.end_time);
+            await startAudio();
+            setupRTC(data.initiator);
+            startCountdown(data.end_time);
         });
 
-        function sendEmoji(emoji) {
-            socket.emit('send_react', {room_id: currentRoom, emoji: emoji});
-            showEmoji(emoji); // Show locally
-        }
-
-        socket.on('incoming_react', (data) => showEmoji(data.emoji));
-
-        function showEmoji(emoji) {
-            const el = document.createElement('div');
-            el.className = 'float-emoji';
-            el.innerText = emoji;
-            el.style.left = Math.random() * 80 + 10 + '%';
-            document.getElementById('react-container').appendChild(el);
-            setTimeout(() => el.remove(), 2000);
-        }
-
-        async function initVoice() {
+        async function startAudio() {
             localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const ctx = new AudioContext();
             const analyzer = ctx.createAnalyser();
             ctx.createMediaStreamSource(localStream).connect(analyzer);
             const d = new Uint8Array(analyzer.frequencyBinCount);
             silenceStart = Date.now();
-            const loop = () => {
+
+            const frame = () => {
                 analyzer.getByteFrequencyData(d);
                 const vol = d.reduce((a,b)=>a+b)/d.length;
-                document.getElementById('ring').style.transform = `scale(${1 + (vol/50)})`;
-                if(vol < 5 && (Date.now() - silenceStart > 8000)) { socket.emit('nuke_triggered', {room_id: currentRoom}); silenceStart = Date.now(); }
-                else if (vol >= 5) silenceStart = Date.now();
-                requestAnimationFrame(loop);
+                
+                // Audio-Visual Transitions
+                const ring = document.getElementById('visualizer-ring');
+                ring.style.transform = `scale(${1 + (vol/40)})`;
+                
+                if(vol > 15) document.body.className = "bg-hot text-white";
+                else if(vol > 5) document.body.className = "bg-active text-white";
+                else document.body.className = "bg-chill text-white";
+
+                // Silence Nuke Logic
+                if(vol < 3) {
+                    if(Date.now() - silenceStart > 10000) { 
+                        socket.emit('nuke_triggered', {room_id: currentRoom});
+                        silenceStart = Date.now();
+                    }
+                } else silenceStart = Date.now();
+                requestAnimationFrame(frame);
             };
-            loop();
+            frame();
         }
 
-        function setupWebRTC(isInitiator) {
+        function setupRTC(initiator) {
             pc = new RTCPeerConnection({ iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', password: 'openrelayproject' }
@@ -115,7 +125,7 @@
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
             pc.ontrack = (e) => { const a = new Audio(); a.srcObject = e.streams[0]; a.play(); };
             pc.onicecandidate = (e) => { if(e.candidate) socket.emit('signal', {room_id: currentRoom, candidate: e.candidate}); };
-            if(isInitiator) {
+            if(initiator) {
                 pc.onnegotiationneeded = async () => {
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
@@ -136,23 +146,52 @@
         });
 
         socket.on('mutual_match', (data) => {
-            const partner = Object.values(data.handles).find(u => u.social !== "{{ session['social'] }}");
-            const rev = document.getElementById('reveal');
-            rev.innerHTML = `🔥 MATCHED!<br>${partner.platform}: ${partner.social}`;
-            rev.classList.remove('hidden');
+            const partner = Object.values(data.handles).find(u => u.social !== "{{ social }}");
+            document.getElementById('reveal-text').innerHTML = `${partner.platform}: ${partner.social}`;
+            document.getElementById('reveal-card').classList.remove('hidden');
+            // Sound effect would play here
         });
 
-        socket.on('topic_nuke', (d) => {
-            const c = document.getElementById('topic-card');
-            c.innerText = "🚨 " + d.topic;
-            c.classList.remove('hidden');
-            setTimeout(() => c.classList.add('hidden'), 10000);
+        socket.on('topic_nuke', (data) => {
+            const slide = document.getElementById('nuke-slide');
+            document.getElementById('nuke-text').innerText = data.topic;
+            slide.classList.add('active');
+            // Notification sound logic
+            setTimeout(() => slide.classList.remove('active'), 12000);
         });
 
-        function startTimer(end) {
-            setInterval(() => {
+        function reportUser() {
+            if(confirm("Report and block this user immediately?")) {
+                socket.emit('report_user', {room_id: currentRoom});
+            }
+        }
+
+        socket.on('security_terminate', (data) => {
+            alert(data.msg);
+            location.reload();
+        });
+
+        function sendReact(emoji) {
+            // Local float
+            spawnEmoji(emoji);
+            // In a real build, emit this to the partner via socket
+        }
+
+        function spawnEmoji(emoji) {
+            const e = document.createElement('div');
+            e.className = 'float-emoji';
+            e.innerText = emoji;
+            e.style.left = Math.random() * 70 + 15 + '%';
+            document.getElementById('main-stage').appendChild(e);
+            setTimeout(() => e.remove(), 2500);
+        }
+
+        function startCountdown(end) {
+            const iv = setInterval(() => {
                 const diff = Math.max(0, Math.floor(end - Date.now()/1000));
-                document.getElementById('timer').innerText = `${Math.floor(diff/60)}:${(diff%60).toString().padStart(2,'0')}`;
+                const m = Math.floor(diff/60), s = diff%60;
+                document.getElementById('timer').innerText = `${m}:${s.toString().padStart(2,'0')}`;
+                if(diff === 0) { clearInterval(iv); location.reload(); }
             }, 1000);
         }
     </script>
