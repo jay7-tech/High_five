@@ -1,50 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <title>High Five | Chat</title>
+    <style>
+        body { overflow: hidden; height: 100vh; touch-action: none; background: #0f172a; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); }
+        .float-emoji { position: absolute; bottom: 100px; animation: floatUp 2s ease-out forwards; font-size: 3rem; pointer-events: none; }
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-400px) scale(2); opacity: 0; } }
+        .pulse-ring { transition: transform 0.1s ease-out; }
+    </style>
 </head>
-<body class="bg-gradient-to-tr from-blue-600 to-purple-700 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center">
-        <h2 class="text-2xl font-black mb-1">🖐️ Hello, {{ username }}!</h2>
-        <p id="status" class="text-gray-500 mb-6 font-medium">Ready to match?</p>
+<body class="text-white flex flex-col items-center justify-between p-6">
 
-        <div id="topic-card" class="hidden bg-yellow-300 p-4 rounded-2xl mb-4 border-2 border-black font-bold animate-bounce"></div>
+    <div class="w-full flex justify-between items-center glass p-4 rounded-[2rem]">
+        <div class="flex items-center gap-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div><span class="text-xs font-black uppercase opacity-60">Live</span></div>
+        <div id="vibe-tag" class="text-[10px] font-black bg-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest">Ready</div>
+    </div>
 
-        <div class="w-32 h-32 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-6 border-4 border-blue-500">
-            <span id="timer" class="text-2xl font-black">05:00</span>
+    <div id="react-container" class="relative w-full flex-1 flex flex-col items-center justify-center">
+        <div id="topic-card" class="hidden glass bg-yellow-400 text-black p-5 rounded-3xl mb-8 font-black border-4 border-black z-50"></div>
+        
+        <div class="relative w-64 h-64 flex items-center justify-center">
+            <div id="ring" class="absolute inset-0 rounded-full border-[12px] border-indigo-500/20 pulse-ring shadow-[0_0_50px_rgba(79,70,229,0.2)]"></div>
+            <div class="text-center z-10">
+                <p id="partner-name" class="text-xs font-bold opacity-40 uppercase mb-1">Searching...</p>
+                <div id="timer" class="text-6xl font-black tracking-tighter tabular-nums">05:00</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full space-y-4">
+        <div id="reveal" class="hidden p-5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl text-center font-black shadow-2xl"></div>
+        
+        <div id="emoji-bar" class="hidden flex justify-center gap-6 mb-4">
+            <button onclick="sendEmoji('🔥')" class="text-3xl active:scale-150 transition">🔥</button>
+            <button onclick="sendEmoji('🖐️')" class="text-3xl active:scale-150 transition">🖐️</button>
+            <button onclick="sendEmoji('❤️')" class="text-3xl active:scale-150 transition">❤️</button>
+            <button onclick="sendEmoji('😂')" class="text-3xl active:scale-150 transition">😂</button>
         </div>
 
-        <button id="action-btn" onclick="start()" class="w-full bg-black text-white font-bold py-4 rounded-2xl shadow-xl active:scale-95 transition-all">FIND MATCH</button>
-        
-        <div id="reveal" class="hidden mt-4 p-4 bg-green-500 text-white rounded-xl font-bold"></div>
+        <button id="action-btn" onclick="startSearch()" class="w-full py-6 rounded-[2.5rem] bg-indigo-600 text-white font-black text-xl shadow-2xl active:scale-95 transition-all">
+            FIND A MATCH
+        </button>
     </div>
 
     <script>
         const socket = io();
         let pc, localStream, currentRoom, silenceStart;
 
-        function start() {
-            document.getElementById('action-btn').innerText = "SEARCHING...";
+        function startSearch() {
             socket.emit('find_match');
+            document.getElementById('action-btn').innerText = "SEARCHING...";
+            document.getElementById('action-btn').disabled = true;
         }
 
         socket.on('match_success', async (data) => {
             currentRoom = data.room_id;
-            document.getElementById('status').innerText = "Talking to " + data.partner;
-            const btn = document.getElementById('action-btn');
-            btn.innerText = "GIVE HIGH FIVE 🖐️";
-            btn.onclick = () => { socket.emit('give_high_five', {room_id: currentRoom}); btn.innerText = "SENT!"; btn.disabled = true; };
+            document.getElementById('partner-name').innerText = "Vibing with " + data.partner.username;
+            document.getElementById('vibe-tag').innerText = data.partner.vibe;
+            document.getElementById('emoji-bar').classList.remove('hidden');
             
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            setupRTC(data.initiator);
-            trackSilence();
-            countdown(data.end_time);
+            const btn = document.getElementById('action-btn');
+            btn.disabled = false;
+            btn.innerText = "GIVE HIGH FIVE 🖐️";
+            btn.onclick = () => { socket.emit('give_high_five', {room_id: currentRoom}); btn.innerText = "WAITING..."; btn.disabled = true; };
+
+            await initVoice();
+            setupWebRTC(data.initiator);
+            startTimer(data.end_time);
         });
 
-        function setupRTC(isInitiator) {
-            pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        function sendEmoji(emoji) {
+            socket.emit('send_react', {room_id: currentRoom, emoji: emoji});
+            showEmoji(emoji); // Show locally
+        }
+
+        socket.on('incoming_react', (data) => showEmoji(data.emoji));
+
+        function showEmoji(emoji) {
+            const el = document.createElement('div');
+            el.className = 'float-emoji';
+            el.innerText = emoji;
+            el.style.left = Math.random() * 80 + 10 + '%';
+            document.getElementById('react-container').appendChild(el);
+            setTimeout(() => el.remove(), 2000);
+        }
+
+        async function initVoice() {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const ctx = new AudioContext();
+            const analyzer = ctx.createAnalyser();
+            ctx.createMediaStreamSource(localStream).connect(analyzer);
+            const d = new Uint8Array(analyzer.frequencyBinCount);
+            silenceStart = Date.now();
+            const loop = () => {
+                analyzer.getByteFrequencyData(d);
+                const vol = d.reduce((a,b)=>a+b)/d.length;
+                document.getElementById('ring').style.transform = `scale(${1 + (vol/50)})`;
+                if(vol < 5 && (Date.now() - silenceStart > 8000)) { socket.emit('nuke_triggered', {room_id: currentRoom}); silenceStart = Date.now(); }
+                else if (vol >= 5) silenceStart = Date.now();
+                requestAnimationFrame(loop);
+            };
+            loop();
+        }
+
+        function setupWebRTC(isInitiator) {
+            pc = new RTCPeerConnection({ iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', password: 'openrelayproject' }
+            ]});
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
             pc.ontrack = (e) => { const a = new Audio(); a.srcObject = e.streams[0]; a.play(); };
             pc.onicecandidate = (e) => { if(e.candidate) socket.emit('signal', {room_id: currentRoom, candidate: e.candidate}); };
@@ -61,61 +128,30 @@
             if(d.sdp) {
                 await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
                 if(pc.remoteDescription.type === 'offer') {
-                    const a = await pc.createAnswer();
-                    await pc.setLocalDescription(a);
+                    const ans = await pc.createAnswer();
+                    await pc.setLocalDescription(ans);
                     socket.emit('signal', {room_id: currentRoom, sdp: pc.localDescription});
                 }
             } else if(d.candidate) pc.addIceCandidate(new RTCIceCandidate(d.candidate));
         });
 
         socket.on('mutual_match', (data) => {
-            const partner = Object.values(data.handles).find(u => u.username !== "{{ username }}");
+            const partner = Object.values(data.handles).find(u => u.social !== "{{ session['social'] }}");
             const rev = document.getElementById('reveal');
-            rev.innerHTML = `MATCH! <br> ${partner.platform}: ${partner.social}`;
+            rev.innerHTML = `🔥 MATCHED!<br>${partner.platform}: ${partner.social}`;
             rev.classList.remove('hidden');
         });
 
-        socket.on('topic_nuke_display', (d) => {
-            const t = document.getElementById('topic-card');
-            t.innerText = "🚨 " + d.topic;
-            t.classList.remove('hidden');
-            setTimeout(() => t.classList.add('hidden'), 10000);
+        socket.on('topic_nuke', (d) => {
+            const c = document.getElementById('topic-card');
+            c.innerText = "🚨 " + d.topic;
+            c.classList.remove('hidden');
+            setTimeout(() => c.classList.add('hidden'), 10000);
         });
-        socket.on('mutual_match', (data) => {
-            const partner = Object.values(data.handles).find(u => u.username !== "{{ username }}");
-            const rev = document.getElementById('reveal');
 
-    // Dynamic styling for different platforms
-            const color = partner.platform === 'Instagram' ? 'from-pink-500 to-purple-600' : 'from-yellow-400 to-yellow-500';
-
-    rev.innerHTML = `
-        <div class="p-4 bg-gradient-to-r ${color} rounded-2xl shadow-xl animate-bounce">
-            <p class="text-xs uppercase opacity-80">New Connection!</p>
-            <h3 class="text-xl font-black">${partner.username}</h3>
-            <p class="text-lg font-bold mt-1">📲 ${partner.platform}: ${partner.social}</p>
-        </div>
-    `;
-    rev.classList.remove('hidden');
-});
-        function trackSilence() {
-            const ctx = new AudioContext();
-            const analyzer = ctx.createAnalyser();
-            ctx.createMediaStreamSource(localStream).connect(analyzer);
-            const d = new Uint8Array(analyzer.frequencyBinCount);
-            silenceStart = Date.now();
-            const check = () => {
-                analyzer.getByteFrequencyData(d);
-                if(d.reduce((a,b)=>a+b)/d.length < 5) {
-                    if(Date.now() - silenceStart > 8000) { socket.emit('nuke_triggered', {room_id: currentRoom}); silenceStart = Date.now(); }
-                } else silenceStart = Date.now();
-                requestAnimationFrame(check);
-            };
-            check();
-        }
-
-        function countdown(end) {
+        function startTimer(end) {
             setInterval(() => {
-                const diff = Math.max(0, Math.floor(end - (Date.now()/1000)));
+                const diff = Math.max(0, Math.floor(end - Date.now()/1000));
                 document.getElementById('timer').innerText = `${Math.floor(diff/60)}:${(diff%60).toString().padStart(2,'0')}`;
             }, 1000);
         }

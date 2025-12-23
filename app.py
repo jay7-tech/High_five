@@ -6,15 +6,14 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'high-five-vibe-key-2025'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# In-memory storage
-users = {} # sid -> {username, social, platform}
+users = {} # sid -> data
 waiting_queue = []
 active_rooms = {}
+online_count = 0
 
 @app.route('/')
 def index():
-    if 'username' not in session:
-        return redirect(url_for('login_page'))
+    if 'username' not in session: return redirect(url_for('login_page'))
     return render_template('index.html', username=session['username'])
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -23,17 +22,29 @@ def login_page():
         session['username'] = request.form.get('username')
         session['social'] = request.form.get('social')
         session['platform'] = request.form.get('platform')
+        session['vibe'] = request.form.get('vibe')
         return redirect(url_for('index'))
     return render_template('login.html')
 
 @socketio.on('connect')
 def handle_connect():
+    global online_count
+    online_count += 1
     if 'username' in session:
         users[request.sid] = {
             'username': session['username'],
             'social': session['social'],
-            'platform': session['platform']
+            'platform': session['platform'],
+            'vibe': session['vibe']
         }
+    emit('update_online', {'count': online_count}, broadcast=True)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    global online_count
+    online_count = max(0, online_count - 1)
+    if request.sid in waiting_queue: waiting_queue.remove(request.sid)
+    emit('update_online', {'count': online_count}, broadcast=True)
 
 @socketio.on('find_match')
 def handle_find_match():
@@ -49,21 +60,23 @@ def handle_find_match():
         end_time = time.time() + 300
         active_rooms[room_id] = {
             'users': {user_id: False, partner_id: False},
-            'end_time': end_time,
             'data': {user_id: users[user_id], partner_id: users[partner_id]}
         }
         
-        emit('match_success', {'room_id': room_id, 'initiator': True, 'end_time': end_time, 'partner': users[partner_id]['username']}, room=user_id)
-        emit('match_success', {'room_id': room_id, 'initiator': False, 'end_time': end_time, 'partner': users[user_id]['username']}, room=partner_id)
+        emit('match_success', {'room_id': room_id, 'initiator': True, 'end_time': end_time, 'partner': users[partner_id]}, room=user_id)
+        emit('match_success', {'room_id': room_id, 'initiator': False, 'end_time': end_time, 'partner': users[user_id]}, room=partner_id)
     else:
         waiting_queue.append(user_id)
+
+@socketio.on('send_react')
+def handle_react(data):
+    emit('incoming_react', {'emoji': data['emoji']}, room=data['room_id'], include_self=False)
 
 @socketio.on('give_high_five')
 def handle_high_five(data):
     room_id = data['room_id']
-    user_id = request.sid
     if room_id in active_rooms:
-        active_rooms[room_id]['users'][user_id] = True
+        active_rooms[room_id]['users'][request.sid] = True
         if all(active_rooms[room_id]['users'].values()):
             emit('mutual_match', {'handles': active_rooms[room_id]['data']}, room=room_id)
 
@@ -73,23 +86,8 @@ def handle_signal(data):
 
 @socketio.on('nuke_triggered')
 def handle_nuke(data):
-    topics = ["Is cereal soup?", "Best pizza topping?", "If you were a dog, what breed?", "Worst first date story?"]
-    emit('topic_nuke_display', {'topic': random.choice(topics)}, room=data['room_id'])
-
-online_count = 0
-
-@socketio.on('connect')
-def handle_connect():
-    global online_count
-    online_count += 1
-    emit('count_update', {'count': online_count}, broadcast=True)
-    # ... your existing login logic ...
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    global online_count
-    online_count = max(0, online_count - 1)
-    emit('count_update', {'count': online_count}, broadcast=True)
+    topics = ["If you could be any flavor of ice cream, what?", "Is a hotdog a sandwich?", "Worst superpower to have?", "Roleplay: You are both pigeons."]
+    emit('topic_nuke', {'topic': random.choice(topics)}, room=data['room_id'])
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

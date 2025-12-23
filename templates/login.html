@@ -1,22 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <title>High Five | Join</title>
 </head>
-<body class="bg-gradient-to-br from-gray-900 to-black min-h-screen flex items-center justify-center p-6">
-    <div class="bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/20 w-full max-w-sm text-center">
-        <h1 class="text-white text-3xl font-black mb-6">🖐️ High Five</h1>
+<body class="bg-[#0f172a] min-h-screen flex items-center justify-center p-6 text-white font-sans">
+    <div class="w-full max-w-sm text-center">
+        <h1 class="text-6xl mb-4 animate-bounce">🖐️</h1>
+        <h2 class="text-4xl font-black mb-2 tracking-tight">High Five</h2>
+        <p class="text-slate-400 mb-8 font-medium">5 minutes. Pure vibes.</p>
+
         <form action="/login" method="POST" class="space-y-4">
-            <input name="username" placeholder="Your Name" required class="w-full p-4 bg-white/5 rounded-xl text-white border border-white/10 outline-none focus:ring-2 focus:ring-blue-500">
+            <input name="username" placeholder="Nickname" required class="w-full p-5 bg-slate-800/50 rounded-3xl border border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-center">
+            
             <div class="flex gap-2">
-                <select name="platform" class="bg-gray-800 text-white p-4 rounded-xl border border-white/10">
+                <select name="platform" class="bg-slate-800 p-5 rounded-3xl border border-slate-700 font-bold">
                     <option value="Instagram">IG</option>
                     <option value="Snapchat">Snap</option>
                 </select>
-                <input name="social" placeholder="Handle" required class="flex-1 p-4 bg-white/5 rounded-xl text-white border border-white/10 outline-none focus:ring-2 focus:ring-blue-500">
+                <input name="social" placeholder="Handle" required class="flex-1 p-5 bg-slate-800/50 rounded-3xl border border-slate-700 outline-none font-bold text-center">
             </div>
-            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all uppercase">Enter Lobby</button>
+
+            <select name="vibe" class="w-full p-5 bg-slate-800/50 rounded-3xl border border-slate-700 font-bold appearance-none text-center">
+                <option value="Chill">Vibe: Chill 🌿</option>
+                <option value="Deep">Vibe: Deep Talk 🌌</option>
+                <option value="Funny">Vibe: Funny 🤡</option>
+            </select>
+
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded-3xl font-black text-xl shadow-[0_0_40px_rgba(79,70,229,0.3)] transition-all active:scale-95 uppercase tracking-widest">
+                Start Vibing
+            </button>
         </form>
     </div>
 </body>
