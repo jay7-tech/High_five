@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
@@ -14,16 +15,16 @@
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
         .squish:active { transform: scale(0.94); }
         
-        #nuke-slide { transform: translateY(-200%); transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        #nuke-slide { transform: translateY(-200%); transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1); z-index: 100; }
         #nuke-slide.active { transform: translateY(0); }
 
-        .float-emoji { position: absolute; bottom: 120px; animation: floatUp 2.5s ease-out forwards; font-size: 3.5rem; pointer-events: none; }
+        .float-emoji { position: absolute; bottom: 120px; animation: floatUp 2.5s ease-out forwards; font-size: 3.5rem; pointer-events: none; z-index: 50; }
         @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(-500px) rotate(20deg); opacity: 0; } }
     </style>
 </head>
 <body class="bg-chill text-white flex flex-col items-center justify-between p-6">
 
-    <div id="nuke-slide" class="fixed top-6 left-6 right-6 z-[100] glass bg-indigo-600/90 p-6 rounded-[2.5rem] shadow-2xl border-2 border-white/20">
+    <div id="nuke-slide" class="fixed top-6 left-6 right-6 glass bg-indigo-600/90 p-6 rounded-[2.5rem] shadow-2xl border-2 border-white/20">
         <p class="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">🚨 Icebreaker Triggered</p>
         <p id="nuke-text" class="text-lg font-bold italic leading-tight"></p>
     </div>
@@ -37,7 +38,7 @@
         <div class="relative w-72 h-72 flex items-center justify-center">
             <div id="visualizer-ring" class="absolute inset-0 rounded-full border-[16px] border-indigo-500/10 shadow-[0_0_60px_rgba(99,102,241,0.1)] transition-transform duration-75"></div>
             <div class="text-center z-10">
-                <p id="partner-status" class="text-xs font-bold opacity-30 uppercase tracking-widest mb-2">Waiting for Pulse</p>
+                <p id="partner-status" class="text-xs font-bold opacity-30 uppercase tracking-widest mb-2">Searching...</p>
                 <div id="timer" class="text-7xl font-black tracking-tighter tabular-nums text-indigo-100">05:00</div>
             </div>
         </div>
@@ -50,10 +51,10 @@
         </div>
 
         <div id="emoji-dock" class="hidden flex justify-center gap-6 mb-4">
-            <button onclick="sendReact('🔥')" class="text-3xl squish">🔥</button>
-            <button onclick="sendReact('🖐️')" class="text-3xl squish">🖐️</button>
-            <button onclick="sendReact('🌌')" class="text-3xl squish">🌌</button>
-            <button onclick="sendReact('😂')" class="text-3xl squish">😂</button>
+            <button onclick="sendEmoji('🔥')" class="text-3xl squish">🔥</button>
+            <button onclick="sendEmoji('🖐️')" class="text-3xl squish">🖐️</button>
+            <button onclick="sendEmoji('🌌')" class="text-3xl squish">🌌</button>
+            <button onclick="sendEmoji('😂')" class="text-3xl squish">😂</button>
         </div>
 
         <button id="main-action" onclick="findMatch()" class="squish w-full py-6 rounded-[2.5rem] bg-white text-indigo-900 font-black text-xl shadow-2xl transition-all tracking-tight">
@@ -64,8 +65,9 @@
     <script>
         const socket = io();
         let pc, localStream, currentRoom, silenceStart;
+        let remoteAudio = new Audio();
+        remoteAudio.autoplay = true;
 
-        // Auto-start search on index load
         window.onload = () => socket.emit('find_match');
 
         socket.on('match_success', async (data) => {
@@ -78,7 +80,11 @@
             const btn = document.getElementById('main-action');
             btn.innerText = "GIVE HIGH FIVE 🖐️";
             btn.className = "squish w-full py-6 rounded-[2.5rem] bg-indigo-500 text-white font-black text-xl shadow-xl transition-all";
-            btn.onclick = () => { socket.emit('give_high_five', {room_id: currentRoom}); btn.innerText = "WAITING..."; btn.disabled = true; };
+            btn.onclick = () => { 
+                socket.emit('give_high_five', {room_id: currentRoom}); 
+                btn.innerText = "WAITING FOR PARTNER..."; 
+                btn.disabled = true; 
+            };
 
             await startAudio();
             setupRTC(data.initiator);
@@ -97,15 +103,12 @@
                 analyzer.getByteFrequencyData(d);
                 const vol = d.reduce((a,b)=>a+b)/d.length;
                 
-                // Audio-Visual Transitions
-                const ring = document.getElementById('visualizer-ring');
-                ring.style.transform = `scale(${1 + (vol/40)})`;
+                document.getElementById('visualizer-ring').style.transform = `scale(${1 + (vol/40)})`;
                 
                 if(vol > 15) document.body.className = "bg-hot text-white";
                 else if(vol > 5) document.body.className = "bg-active text-white";
                 else document.body.className = "bg-chill text-white";
 
-                // Silence Nuke Logic
                 if(vol < 3) {
                     if(Date.now() - silenceStart > 10000) { 
                         socket.emit('nuke_triggered', {room_id: currentRoom});
@@ -122,9 +125,18 @@
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', password: 'openrelayproject' }
             ]});
+
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-            pc.ontrack = (e) => { const a = new Audio(); a.srcObject = e.streams[0]; a.play(); };
-            pc.onicecandidate = (e) => { if(e.candidate) socket.emit('signal', {room_id: currentRoom, candidate: e.candidate}); };
+
+            pc.ontrack = (e) => {
+                remoteAudio.srcObject = e.streams[0];
+                remoteAudio.play().catch(err => console.log("Manual play triggered"));
+            };
+
+            pc.onicecandidate = (e) => { 
+                if(e.candidate) socket.emit('signal', {room_id: currentRoom, candidate: e.candidate}); 
+            };
+
             if(initiator) {
                 pc.onnegotiationneeded = async () => {
                     const offer = await pc.createOffer();
@@ -145,18 +157,38 @@
             } else if(d.candidate) pc.addIceCandidate(new RTCIceCandidate(d.candidate));
         });
 
+        function sendEmoji(emoji) {
+            spawnEmoji(emoji);
+            socket.emit('send_react', { room_id: currentRoom, emoji: emoji });
+        }
+
+        socket.on('incoming_react', (data) => spawnEmoji(data.emoji));
+
+        function spawnEmoji(emoji) {
+            const e = document.createElement('div');
+            e.className = 'float-emoji';
+            e.innerText = emoji;
+            e.style.left = Math.random() * 70 + 15 + '%';
+            document.getElementById('main-stage').appendChild(e);
+            setTimeout(() => e.remove(), 2500);
+        }
+
+        socket.on('partner_ready_to_reveal', () => {
+            document.getElementById('partner-status').innerText = "Partner is ready to swap! 🖐️";
+            document.getElementById('partner-status').classList.add('text-green-400', 'animate-pulse');
+        });
+
         socket.on('mutual_match', (data) => {
-            const partner = Object.values(data.handles).find(u => u.social !== "{{ social }}");
+            // Find the partner's data (the one that isn't the current session user)
+            const partner = Object.values(data.handles).find(u => u.username !== "{{ username }}");
             document.getElementById('reveal-text').innerHTML = `${partner.platform}: ${partner.social}`;
             document.getElementById('reveal-card').classList.remove('hidden');
-            // Sound effect would play here
         });
 
         socket.on('topic_nuke', (data) => {
             const slide = document.getElementById('nuke-slide');
             document.getElementById('nuke-text').innerText = data.topic;
             slide.classList.add('active');
-            // Notification sound logic
             setTimeout(() => slide.classList.remove('active'), 12000);
         });
 
@@ -171,21 +203,6 @@
             location.reload();
         });
 
-        function sendReact(emoji) {
-            // Local float
-            spawnEmoji(emoji);
-            // In a real build, emit this to the partner via socket
-        }
-
-        function spawnEmoji(emoji) {
-            const e = document.createElement('div');
-            e.className = 'float-emoji';
-            e.innerText = emoji;
-            e.style.left = Math.random() * 70 + 15 + '%';
-            document.getElementById('main-stage').appendChild(e);
-            setTimeout(() => e.remove(), 2500);
-        }
-
         function startCountdown(end) {
             const iv = setInterval(() => {
                 const diff = Math.max(0, Math.floor(end - Date.now()/1000));
@@ -194,44 +211,6 @@
                 if(diff === 0) { clearInterval(iv); location.reload(); }
             }, 1000);
         }
-        // Inside your <script>
-        function sendEmoji(emoji) {
-    // Local animation
-            spawnEmoji(emoji);
-    // CRITICAL: Must send the current room_id so the server knows where to broadcast
-            socket.emit('send_react', { room_id: currentRoom, emoji: emoji });
-}
-
-socket.on('incoming_react', (data) => {
-    spawnEmoji(data.emoji);
-});
-
-// AUDIO FIX: Create a dedicated audio object to prevent garbage collection
-let remoteAudio = new Audio();
-remoteAudio.autoplay = true;
-
-function setupRTC(initiator) {
-    pc = new RTCPeerConnection({ iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', password: 'openrelayproject' }
-    ]});
-
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-
-    pc.ontrack = (e) => {
-        console.log("Remote track detected!");
-        remoteAudio.srcObject = e.streams[0];
-        // Browsers require a play() call to bypass silence rules
-        remoteAudio.play().catch(err => console.log("Manual play triggered"));
-    };
-    
-    // ... rest of RTC logic
-}
-
-socket.on('partner_ready_to_reveal', () => {
-    document.getElementById('partner-status').innerText = "Partner wants to share info! 🖐️";
-    document.getElementById('partner-status').classList.add('text-green-400', 'animate-pulse');
-});
     </script>
 </body>
 </html>

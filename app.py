@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'high-five-vibe-ultra-2025'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# In-memory storage (Restarting server clears this)
+# In-memory storage
 users = {} 
 waiting_queue = []
 active_rooms = {}
@@ -44,7 +44,15 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     stats["online"] = max(0, stats["online"] - 1)
-    if request.sid in waiting_queue: waiting_queue.remove(request.sid)
+    if request.sid in waiting_queue:
+        waiting_queue.remove(request.sid)
+    
+    # Notify partner if user disconnects during a call
+    for room_id, room_data in list(active_rooms.items()):
+        if request.sid in room_data['users']:
+            emit('partner_left', room=room_id, include_self=False)
+            if room_id in active_rooms: del active_rooms[room_id]
+            
     emit('update_stats', stats, broadcast=True)
 
 @socketio.on('find_match')
@@ -70,13 +78,24 @@ def handle_find_match():
 
 @socketio.on('give_high_five')
 def handle_high_five(data):
-    room_id = data['room_id']
+    room_id = data.get('room_id')
+    user_id = request.sid
     if room_id in active_rooms:
-        active_rooms[room_id]['users'][request.sid] = True
+        active_rooms[room_id]['users'][user_id] = True
+        
+        # Notify partner that this user is ready
+        emit('partner_ready_to_reveal', room=room_id, include_self=False)
+        
+        # If both are ready, reveal handles
         if all(active_rooms[room_id]['users'].values()):
             stats["total_high_fives"] += 1
             emit('mutual_match', {'handles': active_rooms[room_id]['data']}, room=room_id)
             emit('update_stats', stats, broadcast=True)
+
+@socketio.on('send_react')
+def handle_react(data):
+    room_id = data.get('room_id')
+    emit('incoming_react', {'emoji': data['emoji']}, room=room_id, include_self=False)
 
 @socketio.on('nuke_triggered')
 def handle_nuke(data):
@@ -94,29 +113,7 @@ def handle_signal(data):
 
 @socketio.on('report_user')
 def handle_report(data):
-    # Immediate Nuke: Terminate for both
     emit('security_terminate', {'msg': 'Connection closed for safety.'}, room=data['room_id'])
-
-# No significant changes to imports
-# ... (existing imports and setup)
-
-@socketio.on('send_react')
-def handle_react(data):
-    # CRITICAL FIX: Broadcast to the room so the partner sees it
-    room_id = data.get('room_id')
-    emit('incoming_react', {'emoji': data['emoji']}, room=room_id, include_self=False)
-
-@socketio.on('give_high_five')
-def handle_high_five(data):
-    room_id = data['room_id']
-    user_id = request.sid
-    if room_id in active_rooms:
-        active_rooms[room_id]['users'][user_id] = True
-        # Tell the other person that their partner is "Ready to Swap"
-        emit('partner_ready_to_reveal', room=room_id, include_self=False)
-        
-        if all(active_rooms[room_id]['users'].values()):
-            emit('mutual_match', {'handles': active_rooms[room_id]['data']}, room=room_id)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
