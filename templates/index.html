@@ -11,13 +11,10 @@
         .bg-chill { background: radial-gradient(circle at center, #1e1b4b, #020617); }
         .bg-active { background: radial-gradient(circle at center, #4338ca, #020617); }
         .bg-hot { background: radial-gradient(circle at center, #7c3aed, #020617); }
-        
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
         .squish:active { transform: scale(0.94); }
-        
         #nuke-slide { transform: translateY(-200%); transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1); z-index: 100; }
         #nuke-slide.active { transform: translateY(0); }
-
         .float-emoji { position: absolute; bottom: 120px; animation: floatUp 2.5s ease-out forwards; font-size: 3.5rem; pointer-events: none; z-index: 50; }
         @keyframes floatUp { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(-500px) rotate(20deg); opacity: 0; } }
     </style>
@@ -65,10 +62,19 @@
     <script>
         const socket = io();
         let pc, localStream, currentRoom, silenceStart;
+        
+        // PRE-PRIME AUDIO OBJECT FOR MOBILE
         let remoteAudio = new Audio();
         remoteAudio.autoplay = true;
+        remoteAudio.playsInline = true;
 
         window.onload = () => socket.emit('find_match');
+
+        function findMatch() {
+            socket.emit('find_match');
+            document.getElementById('main-action').innerText = "SEARCHING...";
+            document.getElementById('main-action').disabled = true;
+        }
 
         socket.on('match_success', async (data) => {
             currentRoom = data.room_id;
@@ -78,6 +84,7 @@
             document.getElementById('emoji-dock').classList.remove('hidden');
             
             const btn = document.getElementById('main-action');
+            btn.disabled = false;
             btn.innerText = "GIVE HIGH FIVE 🖐️";
             btn.className = "squish w-full py-6 rounded-[2.5rem] bg-indigo-500 text-white font-black text-xl shadow-xl transition-all";
             btn.onclick = () => { 
@@ -102,19 +109,15 @@
             const frame = () => {
                 analyzer.getByteFrequencyData(d);
                 const vol = d.reduce((a,b)=>a+b)/d.length;
-                
                 document.getElementById('visualizer-ring').style.transform = `scale(${1 + (vol/40)})`;
-                
                 if(vol > 15) document.body.className = "bg-hot text-white";
                 else if(vol > 5) document.body.className = "bg-active text-white";
                 else document.body.className = "bg-chill text-white";
 
-                if(vol < 3) {
-                    if(Date.now() - silenceStart > 10000) { 
-                        socket.emit('nuke_triggered', {room_id: currentRoom});
-                        silenceStart = Date.now();
-                    }
-                } else silenceStart = Date.now();
+                if(vol < 3 && (Date.now() - silenceStart > 10000)) { 
+                    socket.emit('nuke_triggered', {room_id: currentRoom});
+                    silenceStart = Date.now();
+                } else if(vol >= 3) silenceStart = Date.now();
                 requestAnimationFrame(frame);
             };
             frame();
@@ -129,8 +132,14 @@
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
 
             pc.ontrack = (e) => {
+                console.log("Remote track received!");
                 remoteAudio.srcObject = e.streams[0];
-                remoteAudio.play().catch(err => console.log("Manual play triggered"));
+                // Force play for mobile browser compatibility
+                remoteAudio.play().catch(err => {
+                    console.log("Autoplay blocked, waiting for interaction");
+                    document.getElementById('partner-status').innerText = "TAP TO HEAR PARTNER 🔊";
+                    document.getElementById('partner-status').onclick = () => remoteAudio.play();
+                });
             };
 
             pc.onicecandidate = (e) => { 
@@ -179,7 +188,6 @@
         });
 
         socket.on('mutual_match', (data) => {
-            // Find the partner's data (the one that isn't the current session user)
             const partner = Object.values(data.handles).find(u => u.username !== "{{ username }}");
             document.getElementById('reveal-text').innerHTML = `${partner.platform}: ${partner.social}`;
             document.getElementById('reveal-card').classList.remove('hidden');
