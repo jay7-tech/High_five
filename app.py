@@ -76,5 +76,20 @@ def handle_nuke(data):
     topics = ["Is cereal soup?", "Best pizza topping?", "If you were a dog, what breed?", "Worst first date story?"]
     emit('topic_nuke_display', {'topic': random.choice(topics)}, room=data['room_id'])
 
+online_count = 0
+
+@socketio.on('connect')
+def handle_connect():
+    global online_count
+    online_count += 1
+    emit('count_update', {'count': online_count}, broadcast=True)
+    # ... your existing login logic ...
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    global online_count
+    online_count = max(0, online_count - 1)
+    emit('count_update', {'count': online_count}, broadcast=True)
+
 if __name__ == '__main__':
     socketio.run(app, debug=True)
