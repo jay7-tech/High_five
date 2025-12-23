@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <title>High Five | Chat</title>
+</head>
+<body class="bg-gradient-to-tr from-blue-600 to-purple-700 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center">
+        <h2 class="text-2xl font-black mb-1">🖐️ Hello, {{ username }}!</h2>
+        <p id="status" class="text-gray-500 mb-6 font-medium">Ready to match?</p>
+
+        <div id="topic-card" class="hidden bg-yellow-300 p-4 rounded-2xl mb-4 border-2 border-black font-bold animate-bounce"></div>
+
+        <div class="w-32 h-32 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-6 border-4 border-blue-500">
+            <span id="timer" class="text-2xl font-black">05:00</span>
+        </div>
+
+        <button id="action-btn" onclick="start()" class="w-full bg-black text-white font-bold py-4 rounded-2xl shadow-xl active:scale-95 transition-all">FIND MATCH</button>
+        
+        <div id="reveal" class="hidden mt-4 p-4 bg-green-500 text-white rounded-xl font-bold"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        let pc, localStream, currentRoom, silenceStart;
+
+        function start() {
+            document.getElementById('action-btn').innerText = "SEARCHING...";
+            socket.emit('find_match');
+        }
+
+        socket.on('match_success', async (data) => {
+            currentRoom = data.room_id;
+            document.getElementById('status').innerText = "Talking to " + data.partner;
+            const btn = document.getElementById('action-btn');
+            btn.innerText = "GIVE HIGH FIVE 🖐️";
+            btn.onclick = () => { socket.emit('give_high_five', {room_id: currentRoom}); btn.innerText = "SENT!"; btn.disabled = true; };
+            
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setupRTC(data.initiator);
+            trackSilence();
+            countdown(data.end_time);
+        });
+
+        function setupRTC(isInitiator) {
+            pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+            pc.ontrack = (e) => { const a = new Audio(); a.srcObject = e.streams[0]; a.play(); };
+            pc.onicecandidate = (e) => { if(e.candidate) socket.emit('signal', {room_id: currentRoom, candidate: e.candidate}); };
+            if(isInitiator) {
+                pc.onnegotiationneeded = async () => {
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    socket.emit('signal', {room_id: currentRoom, sdp: pc.localDescription});
+                };
+            }
+        }
+
+        socket.on('signal', async (d) => {
+            if(d.sdp) {
+                await pc.setRemoteDescription(new RTCSessionDescription(d.sdp));
+                if(pc.remoteDescription.type === 'offer') {
+                    const a = await pc.createAnswer();
+                    await pc.setLocalDescription(a);
+                    socket.emit('signal', {room_id: currentRoom, sdp: pc.localDescription});
+                }
+            } else if(d.candidate) pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+        });
+
+        socket.on('mutual_match', (data) => {
+            const partner = Object.values(data.handles).find(u => u.username !== "{{ username }}");
+            const rev = document.getElementById('reveal');
+            rev.innerHTML = `MATCH! <br> ${partner.platform}: ${partner.social}`;
+            rev.classList.remove('hidden');
+        });
+
+        socket.on('topic_nuke_display', (d) => {
+            const t = document.getElementById('topic-card');
+            t.innerText = "🚨 " + d.topic;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 10000);
+        });
+
+        function trackSilence() {
+            const ctx = new AudioContext();
+            const analyzer = ctx.createAnalyser();
+            ctx.createMediaStreamSource(localStream).connect(analyzer);
+            const d = new Uint8Array(analyzer.frequencyBinCount);
+            silenceStart = Date.now();
+            const check = () => {
+                analyzer.getByteFrequencyData(d);
+                if(d.reduce((a,b)=>a+b)/d.length < 5) {
+                    if(Date.now() - silenceStart > 8000) { socket.emit('nuke_triggered', {room_id: currentRoom}); silenceStart = Date.now(); }
+                } else silenceStart = Date.now();
+                requestAnimationFrame(check);
+            };
+            check();
+        }
+
+        function countdown(end) {
+            setInterval(() => {
+                const diff = Math.max(0, Math.floor(end - (Date.now()/1000)));
+                document.getElementById('timer').innerText = `${Math.floor(diff/60)}:${(diff%60).toString().padStart(2,'0')}`;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

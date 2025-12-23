@@ -1,103 +1,80 @@
-from flask import Flask, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
-import time
-import uuid
+from flask import Flask, render_template, request, session, redirect, url_for
+from flask_socketio import SocketIO, emit, join_room
+import time, uuid, random
 
 app = Flask(__name__)
-# standard configuration for local development
-app.config['SECRET_KEY'] = 'high-five-secret'
+app.config['SECRET_KEY'] = 'high-five-vibe-key-2025'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# --- GAME STATE ---
-# In a real production app, use Redis. For MVP, memory is fine.
-waiting_queue = [] 
-active_rooms = {} 
+# In-memory storage
+users = {} # sid -> {username, social, platform}
+waiting_queue = []
+active_rooms = {}
+
+@app.route('/')
+def index():
+    if 'username' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('index.html', username=session['username'])
+
+@app.route('/login', methods=['GET', 'POST'])
+def login_page():
+    if request.method == 'POST':
+        session['username'] = request.form.get('username')
+        session['social'] = request.form.get('social')
+        session['platform'] = request.form.get('platform')
+        return redirect(url_for('index'))
+    return render_template('login.html')
 
 @socketio.on('connect')
 def handle_connect():
-    print(f"User connected: {request.sid}")
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    print(f"User disconnected: {request.sid}")
-    
-    # 1. Remove from waiting queue if they are there
-    if request.sid in waiting_queue:
-        waiting_queue.remove(request.sid)
-    
-    # 2. Notify their partner if they were in an active call
-    # (Logic to find room and notify partner goes here)
+    if 'username' in session:
+        users[request.sid] = {
+            'username': session['username'],
+            'social': session['social'],
+            'platform': session['platform']
+        }
 
 @socketio.on('find_match')
-def find_match():
-    """
-    The core logic: If someone is waiting, match them.
-    If no one is waiting, put this user in the queue.
-    """
+def handle_find_match():
     user_id = request.sid
+    if user_id in waiting_queue: return
     
     if len(waiting_queue) > 0:
-        # --- MATCH FOUND! ---
         partner_id = waiting_queue.pop(0)
-        
-        # Create a unique room for these two
         room_id = str(uuid.uuid4())
-        
-        # Group them together using SocketIO 'rooms'
         join_room(room_id, sid=user_id)
         join_room(room_id, sid=partner_id)
         
-        # Calculate hard stop time (5 minutes from now)
-        start_time = time.time()
-        end_time = start_time + 300  # 300 seconds = 5 mins
-        
-        # Store room data
+        end_time = time.time() + 300
         active_rooms[room_id] = {
-            'users': [user_id, partner_id],
-            'end_time': end_time
+            'users': {user_id: False, partner_id: False},
+            'end_time': end_time,
+            'data': {user_id: users[user_id], partner_id: users[partner_id]}
         }
         
-        # Tell both users: "GO!"
-        # We send 'initiator: true' to one so they know to start the WebRTC offer
-        socketio.emit('match_success', {
-            'room_id': room_id,
-            'partner_id': partner_id,
-            'end_time': end_time,
-            'initiator': False
-        }, room=partner_id)
-        
-        socketio.emit('match_success', {
-            'room_id': room_id,
-            'partner_id': user_id,
-            'end_time': end_time,
-            'initiator': True
-        }, room=user_id)
-        
-        print(f"Matched {user_id} with {partner_id} in room {room_id}")
-        
+        emit('match_success', {'room_id': room_id, 'initiator': True, 'end_time': end_time, 'partner': users[partner_id]['username']}, room=user_id)
+        emit('match_success', {'room_id': room_id, 'initiator': False, 'end_time': end_time, 'partner': users[user_id]['username']}, room=partner_id)
     else:
-        # --- NO MATCH YET, PLEASE WAIT ---
         waiting_queue.append(user_id)
-        emit('waiting_for_match', {'message': 'Looking for a High Five...'})
-        print(f"User {user_id} added to queue.")
+
+@socketio.on('give_high_five')
+def handle_high_five(data):
+    room_id = data['room_id']
+    user_id = request.sid
+    if room_id in active_rooms:
+        active_rooms[room_id]['users'][user_id] = True
+        if all(active_rooms[room_id]['users'].values()):
+            emit('mutual_match', {'handles': active_rooms[room_id]['data']}, room=room_id)
+
+@socketio.on('signal')
+def handle_signal(data):
+    emit('signal', data, room=data['room_id'], include_self=False)
 
 @socketio.on('nuke_triggered')
 def handle_nuke(data):
-    """
-    When one client detects silence, they tell the server.
-    The server tells EVERYONE in that room to display the topic.
-    """
-    room_id = data['room_id']
-    import random
-    topics = [
-        "Conspiracy: Why do pigeons bob their heads?",
-        "Roleplay: You are both distinct flavors of soup.",
-        "Debate: Is a hotdog a sandwich? Go!"
-    ]
-    chosen_topic = random.choice(topics)
-    
-    # Broadcast to the specific room only
-    emit('topic_nuke_display', {'topic': chosen_topic}, room=room_id)
+    topics = ["Is cereal soup?", "Best pizza topping?", "If you were a dog, what breed?", "Worst first date story?"]
+    emit('topic_nuke_display', {'topic': random.choice(topics)}, room=data['room_id'])
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000)
+    socketio.run(app, debug=True)
