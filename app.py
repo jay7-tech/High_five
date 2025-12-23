@@ -97,5 +97,26 @@ def handle_report(data):
     # Immediate Nuke: Terminate for both
     emit('security_terminate', {'msg': 'Connection closed for safety.'}, room=data['room_id'])
 
+# No significant changes to imports
+# ... (existing imports and setup)
+
+@socketio.on('send_react')
+def handle_react(data):
+    # CRITICAL FIX: Broadcast to the room so the partner sees it
+    room_id = data.get('room_id')
+    emit('incoming_react', {'emoji': data['emoji']}, room=room_id, include_self=False)
+
+@socketio.on('give_high_five')
+def handle_high_five(data):
+    room_id = data['room_id']
+    user_id = request.sid
+    if room_id in active_rooms:
+        active_rooms[room_id]['users'][user_id] = True
+        # Tell the other person that their partner is "Ready to Swap"
+        emit('partner_ready_to_reveal', room=room_id, include_self=False)
+        
+        if all(active_rooms[room_id]['users'].values()):
+            emit('mutual_match', {'handles': active_rooms[room_id]['data']}, room=room_id)
+
 if __name__ == '__main__':
     socketio.run(app, debug=True)

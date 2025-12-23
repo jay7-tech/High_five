@@ -42,7 +42,29 @@
             <span id="online-count">0</span> Humans Online Now
         </div>
     </div>
+<body class="bg-[#0a0a0c] min-h-screen flex items-center justify-center p-6 text-white font-sans overflow-hidden">
+    <div class="w-full max-w-sm flex flex-col items-center text-center">
+        <div class="w-20 h-20 bg-indigo-600 rounded-full mb-6 flex items-center justify-center text-4xl radar-pulse">🖐️</div>
+        <h1 class="text-3xl font-black mb-1 uppercase tracking-tighter italic">High Five</h1>
+        <p class="text-slate-500 mb-8 text-sm">5-minute voice vibes.</p>
 
+        <form action="/login" method="POST" class="w-full space-y-4">
+            <input name="username" placeholder="Nickname" required class="w-full p-4 bg-white/5 rounded-2xl border border-white/10 outline-none text-center font-bold">
+            
+            <div class="flex gap-2">
+                <select name="platform" class="bg-slate-800 p-4 rounded-2xl border border-white/10 font-bold outline-none text-sm">
+                    <option value="Instagram">IG</option>
+                    <option value="Snapchat">Snap</option>
+                </select>
+                <input name="social" placeholder="Handle" required class="flex-1 p-4 bg-white/5 rounded-2xl border border-white/10 outline-none text-center font-bold">
+            </div>
+
+            <button type="submit" class="w-full bg-indigo-600 py-4 rounded-2xl font-black text-lg shadow-xl uppercase active:scale-95 transition-all">
+                Enter Lobby
+            </button>
+        </form>
+    </div>
+</body>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         const socket = io();

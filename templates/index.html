@@ -194,6 +194,44 @@
                 if(diff === 0) { clearInterval(iv); location.reload(); }
             }, 1000);
         }
+        // Inside your <script>
+        function sendEmoji(emoji) {
+    // Local animation
+            spawnEmoji(emoji);
+    // CRITICAL: Must send the current room_id so the server knows where to broadcast
+            socket.emit('send_react', { room_id: currentRoom, emoji: emoji });
+}
+
+socket.on('incoming_react', (data) => {
+    spawnEmoji(data.emoji);
+});
+
+// AUDIO FIX: Create a dedicated audio object to prevent garbage collection
+let remoteAudio = new Audio();
+remoteAudio.autoplay = true;
+
+function setupRTC(initiator) {
+    pc = new RTCPeerConnection({ iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', password: 'openrelayproject' }
+    ]});
+
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    pc.ontrack = (e) => {
+        console.log("Remote track detected!");
+        remoteAudio.srcObject = e.streams[0];
+        // Browsers require a play() call to bypass silence rules
+        remoteAudio.play().catch(err => console.log("Manual play triggered"));
+    };
+    
+    // ... rest of RTC logic
+}
+
+socket.on('partner_ready_to_reveal', () => {
+    document.getElementById('partner-status').innerText = "Partner wants to share info! 🖐️";
+    document.getElementById('partner-status').classList.add('text-green-400', 'animate-pulse');
+});
     </script>
 </body>
 </html>
